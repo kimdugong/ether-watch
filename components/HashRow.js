@@ -17,7 +17,11 @@ class HashRow extends Component {
 
     return (
       <Row>
-        <Cell>{hash}</Cell>
+        <Cell>
+          <a href={`https://rinkeby.etherscan.io/tx/${hash}`} target="_blank">
+            {hash}
+          </a>
+        </Cell>
         <Cell>
           <Jazzicon diameter={50} seed={jsNumberForAddress(from)} />
         </Cell>
