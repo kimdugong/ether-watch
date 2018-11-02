@@ -3,21 +3,28 @@ import { web3, blockTracker } from '../ethereum/web3';
 import HashRow from '../components/HashRow';
 import { Container, Table } from 'semantic-ui-react';
 import Head from 'next/head';
+import axios from 'axios';
 
 class EtherWatch extends Component {
   static async getInitialProps() {
     const currentBlock = await blockTracker.getLatestBlock();
+    const myAddress = '0xcbf0e955385c2edc08d1b4368c99252bb8ab3275';
+    const API_KEY = 'HARR2IMX4J87MWFK76UWJDANEDMH24TQ8V';
+    const { data } = await axios.get(
+      `http://api-rinkeby.etherscan.io/api?module=account&action=txlist&address=${myAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${API_KEY}`
+    );
     const hex2dec = parseInt(currentBlock, 16);
-    return { currentBlock: hex2dec };
+    return { currentBlock: hex2dec, foundTx: data.result, myAddress };
   }
 
   componentDidMount() {
-    this.listenLatestBlock(this);
+    this.listenLatestBlock();
   }
 
   state = {
     currentBlock: this.props.currentBlock,
     foundTx: [
+      ...this.props.foundTx
       // {
       //   blockHash:
       //     '0xaef8dcb73300cb944fe37757a4aade15f020a1afab79aae94f6047358870b817',
@@ -73,36 +80,37 @@ class EtherWatch extends Component {
     });
   };
 
-  listenLatestBlock = self => {
+  listenLatestBlock = () => {
     blockTracker.on('sync', async ({ newBlock, oldBlock }) => {
-      self.setState({
-        currentBlock: self.hex2dec(newBlock)
+      this.setState({
+        currentBlock: this.hex2dec(newBlock)
       });
 
-      const newBlockInfo = await web3.eth.getBlock(self.hex2dec(newBlock));
-      if (self.hex2dec(oldBlock) === self.hex2dec(newBlock) - 2) {
+      const newBlockInfo = await web3.eth.getBlock(this.hex2dec(newBlock));
+      if (this.hex2dec(oldBlock) === this.hex2dec(newBlock) - 2) {
         const oldBlockInfo = await web3.eth.getBlock(
-          self.hex2dec(oldBlock) + 1
+          this.hex2dec(oldBlock) + 1
         );
         console.log(
-          `${self.hex2dec(newBlock) - 1}th Block information  : `,
+          `${this.hex2dec(newBlock) - 1}th Block information  : `,
           oldBlockInfo
         );
 
-        const tx = await self.searchTx(oldBlockInfo.transactions);
-
-        self.setState(prev => ({
-          foundTx: [...prev.foundTx, ...tx]
+        const txs = await this.searchTx(oldBlockInfo.transactions);
+        console.log('search result txs  : ', txs);
+        this.setState(prev => ({
+          foundTx: [...txs, ...prev.foundTx]
         }));
       }
       console.log(
-        `${self.hex2dec(newBlock)}th Block information  : `,
+        `${this.hex2dec(newBlock)}th Block information  : `,
         newBlockInfo
       );
-      const tx = await self.searchTx(newBlockInfo.transactions);
+      const txs = await this.searchTx(newBlockInfo.transactions);
 
-      self.setState(prev => ({
-        foundTx: [...prev.foundTx, ...tx]
+      console.log('search result txs  : ', txs);
+      this.setState(prev => ({
+        foundTx: [...txs, ...prev.foundTx]
       }));
     });
   };
@@ -111,12 +119,11 @@ class EtherWatch extends Component {
     const result = await Promise.all(
       txs.map(async tx => {
         const transaction = await web3.eth.getTransaction(tx);
-        console.log('transaction    :  ', transaction);
         if (
           transaction.to !== null &&
-          transaction.to.toLowerCase() ===
-            '0xcbf0e955385c2edc08d1b4368c99252bb8ab3275'
+          transaction.to.toLowerCase() === this.props.myAddress
         ) {
+          console.log('my transaction    :  ', transaction);
           return transaction;
         }
       })
